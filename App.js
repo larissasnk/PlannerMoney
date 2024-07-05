@@ -35,6 +35,7 @@ import ReceitasMensais from "./screens/ReceitasMensais";
 import DetailsDiaria from "./screens/DetailsDiaria";
 import EditProfile from "./screens/EditProfile";
 import UserProfile from "./screens/UserProfile";
+import EditReceitasMensais from "./screens/EditReceitasMensais";
 import GastosViagens from "./screens/GastosViagens";
 import { FontFamily } from "./GlobalStyles";
 import { View, Text, Pressable, TouchableOpacity } from "react-native";
@@ -43,12 +44,13 @@ const Stack = createNativeStackNavigator();
 
 const App = () => {
   const [hideSplashScreen, setHideSplashScreen] = React.useState(false);
+  const [user, setUser] = React.useState(null);
 
   const [fontsLoaded] = useFonts({
     [FontFamily.interSemiBold]: require("./assets/fonts/Inter-SemiBold.ttf"),
     [FontFamily.vigaRegular]: require("./assets/fonts/Viga-Regular.ttf"),
     [FontFamily.bentonSansMedium]: require("./assets/fonts/bentonsans-medium.otf"),
-    [FontFamily.bentonSansBold]: require('./assets/fonts/BentonSans Bold.otf'),
+    [FontFamily.bentonSansBold]: require("./assets/fonts/BentonSans Bold.otf"),
     [FontFamily.bentonSansRegular]: require("./assets/fonts/bentonsans-regular.otf"),
     [FontFamily.montserratSemiBold]: require("./assets/fonts/Montserrat-SemiBold.ttf"),
   });
@@ -57,7 +59,7 @@ const App = () => {
     if (fontsLoaded) {
       setTimeout(() => {
         setHideSplashScreen(true);
-      }, 7800); // Aguarda 3 segundos antes de esconder a tela de splash
+      }, 7800); // Aguarda 7.8 segundos antes de esconder a tela de splash
     }
   }, [fontsLoaded]);
 
@@ -74,18 +76,17 @@ const App = () => {
             component={Splash}
             options={{ headerShown: false }}
           />
+        ) : !user ? (
+          <>
+            <Stack.Screen name="SignIn">
+              {(props) => <SignIn {...props} setUser={setUser} />}
+            </Stack.Screen>
+            <Stack.Screen name="SignUp">
+              {(props) => <SignUp {...props} setUser={setUser} />}
+            </Stack.Screen>
+          </>
         ) : (
           <>
-              <Stack.Screen
-                name="SignUp"
-                component={SignUp}
-                options={{ headerShown: false }}
-              />
-            <Stack.Screen
-              name="SignIn"
-              component={SignIn}
-              options={{ headerShown: false }}
-            />
             <Stack.Screen
               name="Home"
               component={Home}
@@ -191,6 +192,11 @@ const App = () => {
               component={ReceitasMensais}
               options={{ headerShown: false }}
             />
+              <Stack.Screen
+                name="EditReceitasMensais"
+                component={EditReceitasMensais}
+                options={{ headerShown: false }}
+              />
             <Stack.Screen
               name="RegisterGastosEmergenciais"
               component={RegisterGastosEmergenciais}

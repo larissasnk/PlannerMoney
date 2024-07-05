@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Image } from "expo-image";
+import { Image, Alert } from "react-native";
 import {
   StyleSheet,
   View,
@@ -11,124 +11,174 @@ import {
   TouchableOpacity,
   Pressable,
 } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
-import { FontSize, Color, Border, FontFamily } from "../GlobalStyles";
 import { useNavigation } from "@react-navigation/native";
+import { FontAwesome5 } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
+import { FontSize, Color, Border, FontFamily } from "../GlobalStyles.js";
+import {
+  auth,
+  createUserWithEmailAndPassword,
+} from "../src/services/firebaseConfig.js";
+import {
+  getFirestore,
+  collection,
+  addDoc,
+  query,
+  where,
+  getDocs,
+} from "firebase/firestore";
+import { Ionicons } from "@expo/vector-icons";
+import CustomAlert from "../components/CustomAlert.js"; // Import the custom alert component
 
 const SignUp = () => {
+  const navigation = useNavigation();
+  const [usuario, setusuario] = React.useState("");
   const [email, setEmail] = React.useState("");
-  const [pass, setPass] = React.useState("");
+  const [telefone, setTelefone] = React.useState("");
+  const [telefoneFormatado, setTelefoneFormatado] = React.useState("");
+  const [confirmpass, setconfirmpass] = React.useState("");
+  const [password, setPassword] = React.useState("");
   const [showPassword, setShowPassword] = React.useState(false);
+  const [showPassword2, setShowPassword2] = React.useState(false);
+  const [alertVisible, setAlertVisible] = React.useState(false);
+  const [alertTitle, setAlertTitle] = React.useState("");
+  const [alertMessage, setAlertMessage] = React.useState("");
+  const [alertType, setAlertType] = React.useState("");
 
   const togglePasswordVisibility = () => {
     setShowPassword((prevShowPassword) => !prevShowPassword);
   };
 
-  const navigation = useNavigation();
+  const togglePasswordVisibility2 = () => {
+    setShowPassword2((prevShowPassword) => !prevShowPassword);
+  };
 
+  const validateEmail = (email) => {
+    const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return re.test(String(email).toLowerCase());
+  };
+
+  const validateForm = () => {
+    if (!usuario || !email || !telefone || !password || !confirmpass) {
+      showAlert("Erro", "Todos os campos são obrigatórios");
+      return false;
+    }
+    if (!validateEmail(email)) {
+      showAlert("Erro", "Por favor, insira um email válido");
+      return false;
+    }
+    if (password.length < 6) {
+      showAlert("Erro", "A senha deve ter pelo menos 6 caracteres");
+      return false;
+    }
+    if (password !== confirmpass) {
+      showAlert("Erro", "As senhas não coincidem");
+      return false;
+    }
+    const telefoneLimpo = telefone.replace(/\D/g, ""); // Remove caracteres não numéricos
+    if (telefoneLimpo.length < 10) {
+      showAlert(
+        "Erro",
+        "O telefone deve conter pelo menos 10 dígitos numéricos"
+      );
+      return false;
+    }
+    return true;
+  };
+
+  const checkIfUsernameExists = async (username) => {
+    const db = getFirestore();
+    const q = query(collection(db, "users"), where("usuario", "==", username));
+    const querySnapshot = await getDocs(q);
+    return !querySnapshot.empty;
+  };
+
+  const handleSignUp = async () => {
+    if (validateForm()) {
+      try {
+        const usernameExists = await checkIfUsernameExists(usuario);
+        if (usernameExists) {
+          showAlert("Erro", "Nome de usuário já está em uso.", "error");
+          return;
+        }
+        const userCredential = await createUserWithEmailAndPassword(
+          auth,
+          email,
+          password
+        );
+        const user = userCredential.user;
+        const db = getFirestore();
+        await addDoc(collection(db, "users"), {
+          uid: user.uid,
+          usuario,
+          telefone,
+          email,
+        });
+        showAlert("Sucesso", "Usuário cadastrado com sucesso!", "success");
+      } catch (error) {
+        if (error.code === "auth/email-already-in-use") {
+          showAlert("Erro", "O email já está em uso.", "error");
+        } else if (error.code === "auth/invalid-email") {
+          showAlert("Erro", "O email fornecido é inválido.", "error");
+        } else {
+          showAlert("Erro", error.message, "error");
+        }
+      }
+    }
+  };
+
+  const showAlert = (title, message, type) => {
+    setAlertTitle(title);
+    setAlertMessage(message);
+    setAlertType(type);
+    setAlertVisible(true);
+  };
+
+  const formatarTelefone = (text) => {
+    // Remove todos os caracteres não numéricos
+    const cleaned = text.replace(/\D/g, "");
+
+    // Limita a quantidade de dígitos para no máximo 11
+    const maxLength = 11;
+    const cleanedLimited = cleaned.slice(0, maxLength);
+
+    // Verifica se o número tem pelo menos 10 dígitos (incluindo o DDD)
+    if (cleanedLimited.length >= 10) {
+      // Adiciona o formato (DD) 9XXXX-XXXX se tiver 11 dígitos, senão assume que são 10 dígitos
+      const formatted =
+        cleanedLimited.length === 11
+          ? `(${cleanedLimited.substring(0, 2)}) ${cleanedLimited.substring(
+              2,
+              7
+            )}-${cleanedLimited.substring(7, 11)}`
+          : `(${cleanedLimited.substring(0, 2)}) ${cleanedLimited.substring(
+              2,
+              6
+            )}-${cleanedLimited.substring(6, 10)}`;
+      return formatted;
+    } else {
+      return cleanedLimited; // retorna apenas os números digitados se forem menos de 10 dígitos
+    }
+  };
+
+  const handleClose = () => {
+  
+    if (alertType === "success") {
+      navigation.navigate("SignIn");
+    }
+  };
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : null}
-      style={styles.container}
-    >
-      <ScrollView
-        contentContainerStyle={{ flexGrow: 1 }}
-        keyboardShouldPersistTaps="handled"
-      >
+    <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : null} style={styles.container}>
+      <ScrollView contentContainerStyle={{flexGrow: 1}} keyboardShouldPersistTaps="handled">
         <View style={styles.signUp}>
-          <Image
-            style={styles.patternIcon}
-            contentFit="cover"
-            source={require("../assets/pattern1.png")}
-          />
-          <View style={styles.ctaButton}>
-            <LinearGradient
-              style={styles.rectangle}
-              locations={[0, 1]}
-              colors={["#53e88b", "#15be77"]}
-            />
-            <Pressable onPress={() => navigation.navigate("Home")}>
-              <View style={styles.createAccountWrapper}>
-                <Text style={styles.createAccount}>Login</Text>
-              </View>
+          <Image style={styles.patternIcon} contentFit="cover" source={require("../assets/pattern1.png")} />
+
+          <View style={styles.viewVoltar}>
+            <Pressable onPress={() => navigation.goBack()} style={styles.iconeVoltar}>
+              <Ionicons name="chevron-back" size={34} color="black" />
             </Pressable>
           </View>
-          <View style={[styles.googleButton, styles.buttonPosition]}>
-            <View style={styles.rectangleShadowBox} />
-            <Text style={[styles.google, styles.emailFlexBox]}>Google</Text>
-            <Image
-              style={[styles.googleIcon1, styles.iconPosition]}
-              contentFit="cover"
-              source={require("../assets/googleicon-1.png")}
-            />
-          </View>
-          <View style={[styles.facebookButton, styles.formPosition1]}>
-            <View style={styles.rectangleShadowBox} />
-            <Image
-              style={[styles.facebook31Icon, styles.iconPosition]}
-              contentFit="cover"
-              source={require("../assets/facebook3-1.png")}
-            />
-            <Text style={[styles.facebook, styles.emailFlexBox]}>Facebook</Text>
-          </View>
 
-          <Pressable onPress={() => navigation.navigate("SignIn")}>
-            <Text style={[styles.criarConta]}>Crie uma conta</Text>
-          </Pressable>
-
-          <View style={[styles.form, styles.formPosition1]}>
-            <View style={[styles.emailForm, styles.formPosition]}>
-              <View style={styles.rectangleShadowBox} />
-              {/* <Text style={[styles.email, styles.emailFlexBox]}>Email</Text> */}
-              <Image
-                style={styles.iconlybulkprofile}
-                contentFit="cover"
-                source={require("../assets/iconlybulkmessage.png")}
-              />
-              <TextInput
-                style={[styles.email, styles.emailFlexBox]}
-                placeholder="Email "
-                value={email}
-                onChangeText={(text) => setEmail(text)}
-              ></TextInput>
-            </View>
-            <View style={[styles.passwordForm, styles.formPosition]}>
-              <View style={styles.rectangleShadowBox} />
-              <TextInput
-                style={[styles.email, styles.emailFlexBox]}
-                placeholder="Senha "
-                value={pass}
-                onChangeText={(text) => setPass(text)}
-                secureTextEntry={!showPassword}
-              ></TextInput>
-              <Image
-                style={styles.iconlybulkprofile}
-                contentFit="cover"
-                source={require("../assets/iconlybulklock.png")}
-              />
-              {/* <Text style={[styles.email, styles.emailFlexBox]}>Senha</Text> */}
-            </View>
-          </View>
-          <Pressable
-            onPress={togglePasswordVisibility}
-            style={styles.imagePressable}
-          >
-            <Image
-              style={styles.iconlybulkshow}
-              contentFit="cover"
-              source={
-                showPassword
-                  ? require("../assets/olho_visivel.png")
-                  : require("../assets/olho_invisivel.png")
-              }
-            />
-          </Pressable>
-          <View style={styles.text}>
-            <Text style={styles.text1}>Faça login</Text>
-            <Text style={[styles.byTappingCreate, styles.byTappingCreateTypo]}>
-              Continue com
-            </Text>
-          </View>
           <View style={styles.logoImg}>
             <Image
               style={[styles.icon, styles.logoPosition]}
@@ -137,44 +187,163 @@ const SignUp = () => {
             />
           </View>
           <View style={styles.rectangle1}>
-            <Text style={[styles.moneymaster, styles.appNamePosition]}>
-              Planner Money
-            </Text>
+            <Text style={[styles.moneymaster, styles.appNamePosition]}>Planner Money</Text>
           </View>
           <View style={styles.logoSub}>
             <View style={styles.rectangle2}>
-              <Text style={[styles.gestorFinanceiroPessoal]}>
-                Gestor Financeiro Pessoal
-              </Text>
+              <Text style={[styles.gestorFinanceiroPessoal]}>Gestor Financeiro Pessoal</Text>
             </View>
           </View>
+
+          <View style={styles.text}>
+            <Text style={styles.text1}>Crie sua conta</Text>
+          </View>
+
+          <View style={styles.form}>
+            <View style={styles.inputContainer}>
+              <Image style={styles.inputIcon} contentFit="cover" source={require("../assets/iconlybulkprofile.png")} />
+
+              <TextInput
+                style={styles.input}
+                placeholder="Usuário "
+                value={usuario}
+                onChangeText={text => setusuario(text)}
+              ></TextInput>
+            </View>
+
+            <View style={styles.inputContainer}>
+              <FontAwesome5 name="phone-alt" size={20} marginRight={10} opacity={0.3} color="#15BE77" />
+              <TextInput
+                style={styles.input}
+                placeholder="Telefone"
+                value={telefone}
+                onChangeText={text => setTelefone(formatarTelefone(text))}
+                keyboardType="phone-pad"
+              />
+            </View>
+
+            <View style={styles.inputContainer}>
+              <Image style={styles.inputIcon} contentFit="cover" source={require("../assets/iconlybulkmessage.png")} />
+              <TextInput
+                style={styles.input}
+                placeholder="Email"
+                value={email}
+                onChangeText={text => setEmail(text)}
+                keyboardType="email-address"
+              />
+            </View>
+            <View style={styles.inputContainer}>
+              <Image style={styles.inputIcon} contentFit="cover" source={require("../assets/iconlybulklock.png")} />
+              <TextInput
+                style={styles.input}
+                placeholder="Senha"
+                value={password}
+                onChangeText={text => setPassword(text)}
+                secureTextEntry={!showPassword}
+              />
+              <Pressable onPress={togglePasswordVisibility} style={styles.eyeIcon}>
+                <Image
+                  style={styles.eyeIcon}
+                  contentFit="cover"
+                  source={
+                    showPassword ? require("../assets/olho_invisivel.png") : require("../assets/olho_visivel.png")
+                  }
+                />
+              </Pressable>
+            </View>
+
+            <View style={styles.inputContainer}>
+              <Image style={styles.inputIcon} contentFit="cover" source={require("../assets/iconlybulklock.png")} />
+              <TextInput
+                style={styles.input}
+                placeholder="Confirme sua senha"
+                value={confirmpass}
+                onChangeText={text => setconfirmpass(text)}
+                secureTextEntry={!showPassword2}
+              />
+              <Pressable onPress={togglePasswordVisibility2} style={styles.eyeIcon}>
+                <Image
+                  style={styles.eyeIcon}
+                  contentFit="cover"
+                  source={
+                    showPassword2 ? require("../assets/olho_invisivel.png") : require("../assets/olho_visivel.png")
+                  }
+                />
+              </Pressable>
+            </View>
+          </View>
+
+          <TouchableOpacity onPress={handleSignUp} style={styles.ctaButton}>
+            <LinearGradient style={styles.rectangle} locations={[0, 1]} colors={["#53e88b", "#15be77"]} />
+            <View style={styles.createAccountWrapper}>
+              <Text style={styles.createAccount}>Registrar</Text>
+            </View>
+          </TouchableOpacity>
         </View>
       </ScrollView>
+      <CustomAlert
+        visible={alertVisible}
+        title={alertTitle}
+        message={alertMessage}
+        alertType={alertType} // Alterado de type para alertType
+        onClose={() => {
+          if (alertType === "success") {
+            navigation.navigate("SignIn");
+          }
+          else {
+            setAlertVisible(false);
+          }
+        }}
+      />
     </KeyboardAvoidingView>
   );
 };
 
 const styles = StyleSheet.create({
-  imagePressable: {
+  viewVoltar: {
+    shadowOffset: {
+      width: 0,
+      height: 0,
+    },
+    shadowOpacity: 2,
+    shadowRadius: 20,
+    elevation: 15,
+    height: 40,
+    width: 40,
+    top: 40,
+    left: 20,
+    backgroundColor: "white",
+    borderRadius: 10,
+    position: "absolute",
+  },
+  iconlybulkshowContainer: {
     position: "absolute",
     height: 30,
     width: 30,
     opacity: 0.3,
-    right: 38,
-    top: 482,
-  },
-  iconlybulkshowContainer: {
-    position: "absolute",
-    height: "100%",
-    width: "100%",
-    opacity: 0.3,
-    justifyContent: "right", // Alinhar verticalmente
-    alignItems: "right", // Alinhar horizontalmente
-    right: 0, // Alinhar à direita
+    right: 10,
+    top: 12,
   },
   iconlybulkshow: {
     height: 30,
     width: 30,
+  },
+  iconlybulkshowContainer2: {
+    position: "absolute",
+    height: 30,
+    width: 30,
+    opacity: 0.3,
+    right: 10,
+    top: 12,
+  },
+  iconlybulkshow2: {
+    height: 30,
+    width: 30,
+  },
+  iconeVoltar: {
+    top: 3,
+    left: 2,
+    zIndex: 1,
   },
   iconlybulkprofile: {
     right: "86.46%",
@@ -243,27 +412,14 @@ const styles = StyleSheet.create({
     width: "40.53%",
     height: "7.02%",
   },
-  emailFlexBox: {
-    letterSpacing: 1,
-    textAlign: "left",
-  },
+
   iconPosition: {
     height: 25,
     top: 16,
     position: "absolute",
     overflow: "hidden",
   },
-  formPosition1: {
-    left: "6.67%",
-    position: "absolute",
-  },
-  formPosition: {
-    height: "45.24%",
-    left: "0%",
-    right: "0%",
-    position: "absolute",
-    width: "100%",
-  },
+
   byTappingCreateTypo: {
     lineHeight: 20,
     fontSize: FontSize.size_sm,
@@ -280,8 +436,8 @@ const styles = StyleSheet.create({
     left: -14,
     width: 403,
     height: 966,
-    opacity: 0.4,
     position: "absolute",
+    opacity: 0.4,
   },
   rectangle: {
     backgroundColor: Color.linear,
@@ -298,26 +454,22 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     fontSize: FontSize.size_lg,
     lineHeight: 21,
+    alignSelf: "center",
     color: Color.colorWhite,
-    textAlign: "left",
     fontFamily: FontFamily.bentonSansBold,
-    top: "50%",
-    marginTop: -10.5,
-    left: "0%",
     position: "absolute",
   },
   createAccountWrapper: {
-    width: "35.21%",
-    right: "34.04%",
-    left: "34.75%",
-    height: 21,
-
-    top: 20,
+    width: "100%",
+    alignSelf: "center",
+    height: 10,
+    top: "50%",
+    marginTop: -10.5,
     position: "absolute",
   },
   ctaButton: {
     width: "37.6%",
-    top: "86.9%",
+    top: "87%",
     right: "31.2%",
     bottom: "7.39%",
     left: "31.2%",
@@ -346,80 +498,13 @@ const styles = StyleSheet.create({
     width: "100%",
     backgroundColor: Color.colorWhite,
   },
-  google: {
-    left: 68,
-    color: Color.colorGray_200,
-    fontFamily: FontFamily.bentonSansMedium,
-    fontSize: FontSize.size_sm,
-    letterSpacing: 1,
-    position: "absolute",
-    top: 18,
-  },
-  googleIcon1: {
-    left: 31,
-    width: 24,
-  },
-  googleButton: {
-    left: "52.8%",
-    right: "6.67%",
-    position: "absolute",
-  },
-  facebook31Icon: {
-    left: 22,
-    width: 25,
-  },
-  facebook: {
-    left: 60,
-    color: Color.colorGray_200,
-    fontFamily: FontFamily.bentonSansMedium,
-    fontSize: FontSize.size_sm,
-    letterSpacing: 1,
-    position: "absolute",
-    top: 18,
-  },
-  facebookButton: {
-    right: "52.8%",
-    bottom: "23.77%",
-    top: "71.21%",
-    width: "40.53%",
-    height: "7.02%",
-  },
-  email: {
-    flex: 1,
-    padding: 2,
-    width: 300,
-    left: "13%",
-    fontFamily: FontFamily.bentonSansRegular,
-    color: Color.colorDarkslategray,
-    opacity: 0.3,
-    fontSize: FontSize.size_base,
-    letterSpacing: 1,
-    position: "absolute",
-    top: "17%",
-  },
-  emailForm: {
-    bottom: "54.76%",
-    height: "45.24%",
-    top: "0%",
-  },
-  passwordForm: {
-    top: "54.76%",
-    bottom: "0%",
-    height: "45.24%",
-  },
-  form: {
-    height: "15.52%",
-    width: "86.67%",
-    top: "48.31%",
-    bottom: "38.18%",
-    right: "6.67%",
-  },
+
   text1: {
     fontWeight: "bold",
     fontSize: 24,
     lineHeight: 26,
     alignSelf: "center",
-    top: 15,
+    top: 10,
     color: Color.colorGray_200,
     fontFamily: FontFamily.bentonSansBold,
     position: "absolute",
@@ -427,17 +512,6 @@ const styles = StyleSheet.create({
   byTappingCreate: {
     position: "absolute",
     marginTop: 37.5,
-    alignSelf: "center",
-    color: Color.colorGray_200,
-    fontFamily: FontFamily.bentonSansBold,
-    lineHeight: 20,
-    fontSize: FontSize.size_base,
-  },
-  criarConta: {
-    textDecorationLine: "underline",
-    fontWeight: "bold",
-    position: "absolute",
-    marginTop: 670,
     alignSelf: "center",
     color: Color.colorGray_200,
     fontFamily: FontFamily.bentonSansBold,
@@ -494,11 +568,42 @@ const styles = StyleSheet.create({
   signUp: {
     borderRadius: Border.br_xl,
     flex: 1,
-    height: 830,
+    height: 880,
     overflow: "hidden",
     width: "100%",
     backgroundColor: Color.colorWhite,
-    marginTop: 38,
+  },
+  form: {
+    width: "89%",
+    alignSelf: "center",
+    marginTop: 130,
+    flexGrow: 1,
+  },
+  inputContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: Color.colorWhitesmoke,
+    borderRadius: Border.br_mini,
+    padding: 10,
+    marginBottom: 20,
+  },
+  input: {
+    flex: 1,
+    fontSize: FontSize.size_base,
+    fontFamily: FontFamily.bentonSansRegular,
+    color: Color.colorDarkslategray,
+  },
+  inputIcon: {
+    width: 24,
+    height: 24,
+    marginRight: 10,
+    opacity: 0.5,
+  },
+  eyeIcon: {
+    width: 24,
+    height: 24,
+    opacity: 0.5,
   },
 });
 
